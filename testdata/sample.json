@@ -1,0 +1,76 @@
+{
+  "resourceSpans": [
+    {
+      "resource": {
+        "attributes": [
+          { "key": "service.name", "value": { "stringValue": "orders-api" } }
+        ]
+      },
+      "scopeSpans": [
+        {
+          "spans": [
+            {
+              "traceId": "4bf92f3577b34da6a3ce929d0e0e4736",
+              "spanId": "00f067aa0ba902b7",
+              "parentSpanId": "",
+              "name": "HTTP GET /api/orders",
+              "startTimeUnixNano": "1700000000000000000",
+              "endTimeUnixNano": "1700000000842000000",
+              "attributes": [
+                { "key": "http.method", "value": { "stringValue": "GET" } },
+                { "key": "http.status_code", "value": { "intValue": "200" } }
+              ],
+              "status": { "code": "STATUS_CODE_OK" }
+            },
+            {
+              "traceId": "4bf92f3577b34da6a3ce929d0e0e4736",
+              "spanId": "a1a1a1a1a1a1a1a1",
+              "parentSpanId": "00f067aa0ba902b7",
+              "name": "gateway.route",
+              "startTimeUnixNano": 1700000000020000000,
+              "endTimeUnixNano": 1700000000821000000,
+              "attributes": [],
+              "status": { "code": "STATUS_CODE_OK" }
+            },
+            {
+              "traceId": "4bf92f3577b34da6a3ce929d0e0e4736",
+              "spanId": "b2b2b2b2b2b2b2b2",
+              "parentSpanId": "a1a1a1a1a1a1a1a1",
+              "name": "auth-service.verify",
+              "startTimeUnixNano": "1700000000060000000",
+              "endTimeUnixNano": "1700000000112000000",
+              "attributes": [
+                { "key": "user.id", "value": { "stringValue": "u-42" } }
+              ],
+              "status": { "code": "STATUS_CODE_UNSET" }
+            },
+            {
+              "traceId": "4bf92f3577b34da6a3ce929d0e0e4736",
+              "spanId": "c3c3c3c3c3c3c3c3",
+              "parentSpanId": "a1a1a1a1a1a1a1a1",
+              "name": "db-query",
+              "startTimeUnixNano": "1700000000200000000",
+              "endTimeUnixNano": "1700000000812000000",
+              "attributes": [
+                { "key": "db.system", "value": { "stringValue": "postgresql" } },
+                { "key": "db.statement", "value": { "stringValue": "SELECT * FROM orders WHERE user_id = $1" } },
+                { "key": "http.status_code", "value": { "intValue": 500 } }
+              ],
+              "status": { "code": "STATUS_CODE_ERROR" }
+            },
+            {
+              "traceId": "4bf92f3577b34da6a3ce929d0e0e4736",
+              "spanId": "d4d4d4d4d4d4d4d4",
+              "parentSpanId": "c3c3c3c3c3c3c3c3",
+              "name": "db.connection.acquire",
+              "startTimeUnixNano": "1700000000200000000",
+              "endTimeUnixNano": "1700000000230000000",
+              "attributes": [],
+              "status": { "code": "STATUS_CODE_OK" }
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

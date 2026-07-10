@@ -1,0 +1,6 @@
+# Compiled binary
+/otel-oneshot
+
+# Go test / build artifacts
+*.out
+*.test

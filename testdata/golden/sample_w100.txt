@@ -1,0 +1,8 @@
+Trace: 4bf92f3577b34da6a3ce929d0e0e4736  (root: HTTP GET /api/orders, duration: 842ms)
+
+span                               0ms                        421ms                      842ms
+└─ HTTP GET /api/orders            ▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓ 842ms
+   └─ gateway.route                 ▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓  801ms
+      ├─ auth-service.verify           ▓▓▓▓                                                     52ms
+      └─ db-query [ERROR]                        ▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓   612ms
+         └─ db.connection.acquire                ▓▓                                             30ms
