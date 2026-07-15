@@ -94,6 +94,59 @@ func TestInvalidEnum(t *testing.T) {
 	}
 }
 
+func TestFoldHideRepeatableFlags(t *testing.T) {
+	cfg, err := Load([]string{
+		"--fold", "^Sinatra", "--fold", "Rack::",
+		"--hide", "a{2,3}", // regex with a comma: must not be CSV-split
+		"in.json",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(cfg.FoldPatterns) != 2 || cfg.FoldPatterns[0] != "^Sinatra" || cfg.FoldPatterns[1] != "Rack::" {
+		t.Errorf("FoldPatterns = %v, want two entries", cfg.FoldPatterns)
+	}
+	if len(cfg.HidePatterns) != 1 || cfg.HidePatterns[0] != "a{2,3}" {
+		t.Errorf("HidePatterns = %v, want [a{2,3}] (no comma split)", cfg.HidePatterns)
+	}
+	if cfg.MatchMode != "regex" {
+		t.Errorf("MatchMode = %q, want regex (default)", cfg.MatchMode)
+	}
+}
+
+func TestMatchModeValidationAndOverride(t *testing.T) {
+	if _, err := Load([]string{"--match-mode", "fuzzy"}); err == nil {
+		t.Fatal("expected error for invalid --match-mode")
+	}
+	cfg, err := Load([]string{"--match-mode", "exact", "in.json"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cfg.MatchMode != "exact" {
+		t.Errorf("MatchMode = %q, want exact", cfg.MatchMode)
+	}
+}
+
+func TestFoldHideFromYAML(t *testing.T) {
+	dir := t.TempDir()
+	yamlPath := filepath.Join(dir, "config.yaml")
+	yaml := `
+fold_patterns: ["^Sinatra", "^Rack"]
+hide_patterns: ["Kernel#"]
+match_mode: exact
+`
+	if err := os.WriteFile(yamlPath, []byte(yaml), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	cfg, err := Load([]string{"--config", yamlPath, "in.json"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(cfg.FoldPatterns) != 2 || len(cfg.HidePatterns) != 1 || cfg.MatchMode != "exact" {
+		t.Errorf("YAML fold/hide/match_mode not applied: %+v", cfg)
+	}
+}
+
 func TestShowAttributesCSV(t *testing.T) {
 	cfg, err := Load([]string{"--show-attributes", "http.status_code, db.statement ,"})
 	if err != nil {

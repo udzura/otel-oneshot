@@ -75,14 +75,6 @@ func hiddenChildrenLine(r layout.Row, treeWidth int, st Styler) string {
 	}
 	b.WriteString("└─ ")
 
-	text := pluralHidden(r.HiddenChildren)
-	cell := padRight(truncate(b.String()+text, treeWidth), treeWidth)
+	cell := padRight(truncate(b.String()+r.HiddenMarker, treeWidth), treeWidth)
 	return st.Dim(cell)
-}
-
-func pluralHidden(n int) string {
-	if n == 1 {
-		return "... (1 child hidden by --max-depth)"
-	}
-	return "... (" + itoa(n) + " children hidden by --max-depth)"
 }
