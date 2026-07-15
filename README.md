@@ -21,6 +21,14 @@ span                               0ms                        421ms             
 
 ## Install / Build
 
+### Homebrew
+
+```sh
+brew install udzura/tap/otel-oneshot
+```
+
+### From source
+
 ```sh
 go build -o otel-oneshot .
 # or run directly
