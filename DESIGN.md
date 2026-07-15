@@ -86,6 +86,9 @@ otel-oneshot [input.json] [flags]
 | `--top-n` | int | 0 (無制限) | duration降順で上位N件のspanのみ表示(親子関係は保持) |
 | `--width` | int | 0 (auto) | 出力全体の文字幅。0なら端末幅を検出、検出不可なら120 |
 | `--show-attributes` | []string | [] | タイムライン行に併記するattributeキーのカンマ区切りリスト |
+| `--fold` | []string | [] | マッチしたspanのサブツリーを畳む(span自体は残す)。繰り返し指定可 |
+| `--hide` | []string | [] | マッチしたspanを除去し子を親に繋ぎ直す。繰り返し指定可 |
+| `--match-mode` | string | "regex" | `--fold`/`--hide`のマッチ方式。`regex` \| `exact` |
 | `--highlight-errors` | bool | true | status=ERRORのspanを強調表示するか |
 | `--color` | string | "auto" | `auto` \| `always` \| `never` |
 | `--sort` | string | "start_time" | `start_time` \| `duration` |
@@ -213,9 +216,15 @@ type Trace struct {
 1. **root解決**: `--root-span-id` / `--root-span-name` が指定されていれば、
    該当spanを新たな仮想rootとし、そのsubtreeだけを対象にする。
    両方未指定なら `Trace.Roots` 全体を対象とする。
-2. **max-depth適用**: root解決後のツリーに対し、指定深さを超える子孫を除去する
-   (除去した場合は該当ノードに「...(N children hidden)」の情報を持たせておき、
-   renderで表示できるようにする)。
+2. **hide / max-depth / fold 適用**: root解決後のツリーを1回のクローンで再構築する
+   (この3つはノード単位で hide → max-depth → fold の順に判定する)。
+   - **hide**: `--hide` にマッチしたspanを除去し、その子を親に繋ぎ直す(reparent)。
+     depthはこの間引き後のツリーに対して数える。
+   - **max-depth**: 指定深さを超える子孫を除去する。
+   - **fold**: `--fold` にマッチしたspanはそれ自体を残しつつ子孫を畳む。
+   - 除去/畳みが起きたノードには「...(N children hidden by --max-depth/--fold)」の
+     情報(`HiddenChildren` と `HiddenByFold`)を持たせ、renderで表示できるようにする。
+   - `--match-mode`(`regex` 既定 / `exact`)でパターンの解釈を切り替える。
 3. **top-n適用**: 残ったspan群を `DurationNanos()` 降順でソートし、上位N件の
    spanIDセットを求める。このセットに含まれないspanは非表示にするが、
    **祖先spanは表示上の構造維持のため強制的に残す**(そうしないとツリーが

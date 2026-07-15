@@ -36,6 +36,9 @@ go build -o otel-oneshot . && ./otel-oneshot <input.json> [flags]
 | 「遅い span はどれ」「ボトルネックは」 | `--top-n 10 --sort duration` |
 | 「◯◯ より下だけ見たい」 | `--root-span-name "<span名>"` または `--root-span-id <id>` |
 | 「深すぎる、浅くして」 | `--max-depth 3`(数字は適宜) |
+| 「フレームワーク/gem のノイズを消して」 | `--hide '<正規表現>'`(繰り返し可)。マッチ span を消し子を親に繋ぎ直す。例: `--hide '^Sinatra::' --hide '^Rack::'` |
+| 「この subtree は畳んでおいて」 | `--fold '<正規表現>'`(繰り返し可)。span は残し子孫を隠す |
+| 「完全一致で消したい/正規表現メタ文字を含む名前」 | `--match-mode exact`(既定は `regex`)。例: `--hide 'Hash#[]' --match-mode exact` |
 | 「HTTP ステータスや SQL も出して」 | `--show-attributes http.status_code,db.statement` |
 | 「ナノ/マイクロ秒まで細かく」 | `--time-unit ns`(または `us`) |
 | 「エラーだけ目立たせて」 | 既定で ON。抑止は `--highlight-errors=false` |

@@ -133,6 +133,92 @@ func TestTopNForcesAncestorOfDeepSpan(t *testing.T) {
 	}
 }
 
+func TestHideReparentsChildren(t *testing.T) {
+	tr := buildTrace()
+	// Hide "a" (exact regex): a is dropped, its child a1 is lifted to become a
+	// direct child of root at depth 1.
+	roots, err := Apply(tr, Options{HidePatterns: []string{"^a$"}, MatchMode: "regex"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if find(roots, "a") != nil {
+		t.Error("a should be hidden")
+	}
+	a1 := find(roots, "a1")
+	if a1 == nil {
+		t.Fatal("a1 should survive (reparented)")
+	}
+	if a1.Depth != 1 {
+		t.Errorf("a1 depth = %d, want 1 (reparented under root)", a1.Depth)
+	}
+	root := find(roots, "root")
+	if root == nil || len(root.Children) != 2 {
+		t.Fatalf("root should have 2 children (a1, b), got %v", root)
+	}
+	// Non-mutation of the source tree.
+	if len(tr.AllSpans["root"].Children) != 2 || find(tr.Roots, "a") == nil {
+		t.Error("original tree was mutated by hide")
+	}
+}
+
+func TestFoldCollapsesSubtree(t *testing.T) {
+	tr := buildTrace()
+	roots, err := Apply(tr, Options{FoldPatterns: []string{"^a$"}, MatchMode: "regex"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	a := find(roots, "a")
+	if a == nil {
+		t.Fatal("a should remain when folded")
+	}
+	if find(roots, "a1") != nil {
+		t.Error("a1 should be collapsed under folded a")
+	}
+	if a.HiddenChildren != 1 || !a.HiddenByFold {
+		t.Errorf("a HiddenChildren=%d HiddenByFold=%v, want 1/true", a.HiddenChildren, a.HiddenByFold)
+	}
+}
+
+func TestMatchModeExactVsRegex(t *testing.T) {
+	// exact: only the span literally named "a" is hidden; a1 survives.
+	roots, err := Apply(buildTrace(), Options{HidePatterns: []string{"a"}, MatchMode: "exact"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if find(roots, "a") != nil {
+		t.Error("exact: a should be hidden")
+	}
+	if find(roots, "a1") == nil {
+		t.Error("exact: a1 should NOT be hidden (name is 'a1', not 'a')")
+	}
+
+	// regex: pattern "a" matches any name containing 'a', so a and a1 both go.
+	roots, err = Apply(buildTrace(), Options{HidePatterns: []string{"a"}, MatchMode: "regex"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if find(roots, "a") != nil || find(roots, "a1") != nil {
+		t.Error("regex: both a and a1 should be hidden")
+	}
+}
+
+func TestInvalidRegexReturnsError(t *testing.T) {
+	if _, err := Apply(buildTrace(), Options{FoldPatterns: []string{"("}, MatchMode: "regex"}); err == nil {
+		t.Fatal("expected error for invalid fold regex")
+	}
+}
+
+func TestNoPatternsIsNoOp(t *testing.T) {
+	// Empty pattern lists must leave the full tree intact regardless of mode.
+	roots, err := Apply(buildTrace(), Options{MatchMode: "exact"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if countSpans(roots) != 4 {
+		t.Errorf("span count = %d, want 4 (no filtering)", countSpans(roots))
+	}
+}
+
 func TestSortDuration(t *testing.T) {
 	tr := buildTrace()
 	roots, err := Apply(tr, Options{Sort: "duration"})

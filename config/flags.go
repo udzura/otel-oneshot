@@ -4,6 +4,7 @@ import (
 	"flag"
 	"fmt"
 	"io"
+	"strings"
 )
 
 // usageText is printed for -h/--help and on flag errors.
@@ -27,6 +28,9 @@ Flags:
   --color string            auto | always | never (default auto)
   --sort string             start_time | duration (default start_time)
   --time-unit string        auto | s | ms | us | ns (default auto)
+  --fold string             Collapse the subtree of spans matching this pattern (repeatable)
+  --hide string             Drop spans matching this pattern, reparenting children (repeatable)
+  --match-mode string       How --fold/--hide patterns match: regex | exact (default regex)
 `
 
 // parseFlags parses argv into rawFlags, tracking which flags were explicitly
@@ -50,6 +54,9 @@ func parseFlags(args []string) (*rawFlags, []string, error) {
 	fs.StringVar(&rf.color, "color", "auto", "")
 	fs.StringVar(&rf.sort, "sort", "start_time", "")
 	fs.StringVar(&rf.timeUnit, "time-unit", "auto", "")
+	fs.Var((*stringSlice)(&rf.foldPatterns), "fold", "")
+	fs.Var((*stringSlice)(&rf.hidePatterns), "hide", "")
+	fs.StringVar(&rf.matchMode, "match-mode", "regex", "")
 
 	// The standard flag package stops at the first non-flag argument, so
 	// "input.json --width 100" would treat the flags as positionals. Parse in
@@ -75,6 +82,18 @@ func parseFlags(args []string) (*rawFlags, []string, error) {
 	fs.Visit(func(f *flag.Flag) { rf.set[f.Name] = true })
 
 	return rf, positional, nil
+}
+
+// stringSlice is a flag.Value that accumulates a value each time its flag is
+// given, so --fold/--hide can be repeated. This avoids CSV splitting, which
+// would break regex patterns containing commas (e.g. "a{2,3}").
+type stringSlice []string
+
+func (s *stringSlice) String() string { return strings.Join(*s, ",") }
+
+func (s *stringSlice) Set(v string) error {
+	*s = append(*s, v)
+	return nil
 }
 
 // UsageError signals that usage should be printed and the process should exit 0.

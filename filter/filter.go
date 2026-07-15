@@ -3,9 +3,14 @@
 // The pipeline order is fixed and significant (see DESIGN.md §5):
 //
 //  1. root resolution   — pick the subtree(s) to display
-//  2. max-depth          — prune descendants beyond a depth limit
-//  3. top-n              — keep only the N longest spans plus their ancestors
-//  4. sort               — order siblings by start time or duration
+//  2. hide               — drop spans matching a pattern, reparenting children
+//  3. max-depth          — prune descendants beyond a depth limit
+//  4. fold               — collapse the subtree of spans matching a pattern
+//  5. top-n              — keep only the N longest spans plus their ancestors
+//  6. sort               — order siblings by start time or duration
+//
+// hide, max-depth and fold are applied together in a single reshaping clone so
+// that depth is counted against the already-elided tree.
 //
 // filter never mutates the domain tree it is given: it returns a freshly cloned
 // tree so that domain.Trace (and its AllSpans index) stay consistent and tests
@@ -26,6 +31,15 @@ type Options struct {
 	MaxDepth     int    // 0 = unlimited
 	TopN         int    // 0 = all
 	Sort         string // "start_time" | "duration"
+
+	// FoldPatterns collapse the subtree of any matching span (the span itself
+	// stays, its descendants are hidden behind a marker). HidePatterns drop
+	// matching spans entirely, reparenting their children onto the nearest
+	// surviving ancestor. MatchMode selects how patterns are interpreted:
+	// "regex" (default) or "exact". Empty pattern lists are no-ops.
+	FoldPatterns []string
+	HidePatterns []string
+	MatchMode    string
 }
 
 // Apply runs the fixed filter pipeline and returns the resulting root spans
@@ -36,11 +50,18 @@ func Apply(tr *domain.Trace, opt Options) ([]*domain.Span, error) {
 		return nil, err
 	}
 
-	// max-depth is applied during the clone.
-	cloned := make([]*domain.Span, 0, len(roots))
-	for _, r := range roots {
-		cloned = append(cloned, cloneWithDepth(r, 0, opt.MaxDepth))
+	hide, err := compileMatcher(opt.HidePatterns, opt.MatchMode)
+	if err != nil {
+		return nil, fmt.Errorf("--hide: %w", err)
 	}
+	fold, err := compileMatcher(opt.FoldPatterns, opt.MatchMode)
+	if err != nil {
+		return nil, fmt.Errorf("--fold: %w", err)
+	}
+
+	// hide + max-depth + fold are applied together during the clone.
+	sh := shaper{hide: hide, fold: fold, maxDepth: opt.MaxDepth}
+	cloned := sh.forest(roots, 0)
 
 	if opt.TopN > 0 {
 		cloned = applyTopN(cloned, opt.TopN)
@@ -86,24 +107,69 @@ func findFirstByName(roots []*domain.Span, name string) *domain.Span {
 	return nil
 }
 
-// cloneWithDepth deep-copies a span subtree, assigning depth relative to the new
-// root (relDepth) and pruning children beyond maxDepth (0 = unlimited). When a
-// node's children are pruned, HiddenChildren records how many were dropped.
-func cloneWithDepth(s *domain.Span, relDepth, maxDepth int) *domain.Span {
+// shaper reshapes the tree during a single cloning pass, applying (in this
+// order per node) hide, then max-depth, then fold. It never mutates the input.
+type shaper struct {
+	hide     *matcher // nil = no hiding
+	fold     *matcher // nil = no folding
+	maxDepth int      // 0 = unlimited
+}
+
+// forest reshapes a sibling list at the given depth. hide can expand a single
+// input node into zero or more output nodes (its lifted children), so this
+// returns a flat slice.
+func (sh shaper) forest(spans []*domain.Span, relDepth int) []*domain.Span {
+	var out []*domain.Span
+	for _, s := range spans {
+		out = append(out, sh.node(s, relDepth)...)
+	}
+	return out
+}
+
+// node reshapes a single span. A hidden span contributes its lifted children in
+// place of itself; every other span yields exactly one cloned node.
+func (sh shaper) node(s *domain.Span, relDepth int) []*domain.Span {
+	if sh.hide.match(s.Name) {
+		// Drop this span; its children move up to take its place.
+		return sh.forest(s.Children, relDepth)
+	}
+
 	c := *s // shallow copy of scalar/map/slice fields
 	c.Depth = relDepth
 	c.Children = nil
 	c.HiddenChildren = 0
+	c.HiddenByFold = false
 
-	limited := maxDepth != 0 && relDepth >= maxDepth
-	if limited {
-		c.HiddenChildren = len(s.Children)
-		return &c
+	// max-depth wins over fold: once at the limit, nothing deeper is shown.
+	if sh.maxDepth != 0 && relDepth >= sh.maxDepth {
+		c.HiddenChildren = sh.visibleChildCount(s.Children)
+		return []*domain.Span{&c}
 	}
-	for _, child := range s.Children {
-		c.Children = append(c.Children, cloneWithDepth(child, relDepth+1, maxDepth))
+
+	if sh.fold.match(s.Name) {
+		c.HiddenChildren = sh.visibleChildCount(s.Children)
+		c.HiddenByFold = true
+		return []*domain.Span{&c}
 	}
-	return &c
+
+	c.Children = sh.forest(s.Children, relDepth+1)
+	return []*domain.Span{&c}
+}
+
+// visibleChildCount counts how many direct children would remain after hiding,
+// so a fold/max-depth marker reports the count the viewer would actually see.
+// It only recurses through hidden nodes (to reach the children they lift up),
+// not through the whole subtree.
+func (sh shaper) visibleChildCount(spans []*domain.Span) int {
+	n := 0
+	for _, s := range spans {
+		if sh.hide.match(s.Name) {
+			n += sh.visibleChildCount(s.Children)
+		} else {
+			n++
+		}
+	}
+	return n
 }
 
 // applyTopN keeps only the TopN longest spans plus every ancestor needed to

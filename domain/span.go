@@ -45,9 +45,14 @@ type Span struct {
 	Depth    int     // set by BuildTree (root == 0)
 
 	// HiddenChildren is the number of direct children that were pruned by a
-	// depth limit. It is set by the filter layer (0 otherwise) and lets the
-	// renderer show a "... (N children hidden)" marker.
+	// depth limit or a fold pattern. It is set by the filter layer (0
+	// otherwise) and lets the renderer show a "... (N children hidden)" marker.
 	HiddenChildren int
+
+	// HiddenByFold distinguishes why HiddenChildren were pruned: true when the
+	// span matched a --fold pattern (subtree collapsed), false when the prune
+	// came from --max-depth. Only meaningful when HiddenChildren > 0.
+	HiddenByFold bool
 }
 
 // DurationNanos returns the span duration, clamped at 0 for spans whose end is

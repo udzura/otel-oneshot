@@ -63,6 +63,9 @@ func run(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
 		MaxDepth:     cfg.MaxDepth,
 		TopN:         cfg.TopN,
 		Sort:         cfg.Sort,
+		FoldPatterns: cfg.FoldPatterns,
+		HidePatterns: cfg.HidePatterns,
+		MatchMode:    cfg.MatchMode,
 	})
 	if err != nil {
 		fmt.Fprintf(stderr, "error: %v\n", err)

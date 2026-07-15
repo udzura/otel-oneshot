@@ -6,7 +6,6 @@ package render
 import (
 	"fmt"
 	"io"
-	"strconv"
 	"strings"
 	"unicode/utf8"
 
@@ -182,5 +181,3 @@ func padLeft(s string, w int) string {
 	}
 	return strings.Repeat(" ", w-n) + s
 }
-
-func itoa(n int) string { return strconv.Itoa(n) }

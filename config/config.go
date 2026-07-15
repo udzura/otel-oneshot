@@ -25,6 +25,9 @@ type Config struct {
 	Color           string // auto | always | never
 	Sort            string // start_time | duration
 	TimeUnit        string // auto | ms | us | ns
+	FoldPatterns    []string
+	HidePatterns    []string
+	MatchMode       string // regex | exact
 }
 
 // Defaults returns a Config populated with the documented default values.
@@ -37,6 +40,7 @@ func Defaults() Config {
 		Color:           "auto",
 		Sort:            "start_time",
 		TimeUnit:        "auto",
+		MatchMode:       "regex",
 	}
 }
 
@@ -54,6 +58,9 @@ type fileConfig struct {
 	Color           *string  `yaml:"color"`
 	Sort            *string  `yaml:"sort"`
 	TimeUnit        *string  `yaml:"time_unit"`
+	FoldPatterns    []string `yaml:"fold_patterns"`
+	HidePatterns    []string `yaml:"hide_patterns"`
+	MatchMode       *string  `yaml:"match_mode"`
 }
 
 // rawFlags holds parsed flag values plus which flags were explicitly set on the
@@ -73,6 +80,9 @@ type rawFlags struct {
 	color           string
 	sort            string
 	timeUnit        string
+	foldPatterns    []string
+	hidePatterns    []string
+	matchMode       string
 }
 
 // Load resolves the effective configuration from CLI args (excluding argv[0]).
@@ -160,6 +170,15 @@ func applyYAML(cfg *Config, fc *fileConfig) {
 	if fc.TimeUnit != nil {
 		cfg.TimeUnit = *fc.TimeUnit
 	}
+	if fc.FoldPatterns != nil {
+		cfg.FoldPatterns = fc.FoldPatterns
+	}
+	if fc.HidePatterns != nil {
+		cfg.HidePatterns = fc.HidePatterns
+	}
+	if fc.MatchMode != nil {
+		cfg.MatchMode = *fc.MatchMode
+	}
 }
 
 func applyFlags(cfg *Config, rf *rawFlags) {
@@ -196,6 +215,15 @@ func applyFlags(cfg *Config, rf *rawFlags) {
 	if rf.set["time-unit"] {
 		cfg.TimeUnit = rf.timeUnit
 	}
+	if rf.set["fold"] {
+		cfg.FoldPatterns = rf.foldPatterns
+	}
+	if rf.set["hide"] {
+		cfg.HidePatterns = rf.hidePatterns
+	}
+	if rf.set["match-mode"] {
+		cfg.MatchMode = rf.matchMode
+	}
 }
 
 func validate(cfg *Config) error {
@@ -213,6 +241,11 @@ func validate(cfg *Config) error {
 	case "auto", "ms", "us", "ns", "s":
 	default:
 		return fmt.Errorf("invalid --time-unit %q (want auto|s|ms|us|ns)", cfg.TimeUnit)
+	}
+	switch cfg.MatchMode {
+	case "regex", "exact":
+	default:
+		return fmt.Errorf("invalid --match-mode %q (want regex|exact)", cfg.MatchMode)
 	}
 	if cfg.MaxDepth < 0 {
 		return fmt.Errorf("--max-depth must be >= 0")

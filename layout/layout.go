@@ -9,6 +9,7 @@
 package layout
 
 import (
+	"strconv"
 	"unicode/utf8"
 
 	"github.com/udzura/otel-oneshot/domain"
@@ -34,6 +35,8 @@ type Row struct {
 	EndCol   int // bar end column within the bar pane (StartCol, BarWidth]
 
 	HiddenChildren int    // > 0 => renderer shows "... (N children hidden)"
+	HiddenByFold   bool   // true => hidden by --fold; false => by --max-depth
+	HiddenMarker   string // pre-formatted marker text, "" when HiddenChildren == 0
 	DurationLabel  string // pre-formatted, e.g. "842ms"
 }
 
@@ -118,10 +121,28 @@ func flatten(spans []*domain.Span, ancestorsLast []bool, out *[]Row) {
 			IsLast:         isLast,
 			AncestorsLast:  append([]bool(nil), ancestorsLast...),
 			HiddenChildren: s.HiddenChildren,
+			HiddenByFold:   s.HiddenByFold,
+		}
+		if s.HiddenChildren > 0 {
+			row.HiddenMarker = hiddenMarkerText(s.HiddenChildren, s.HiddenByFold)
 		}
 		*out = append(*out, row)
 		flatten(s.Children, append(ancestorsLast, isLast), out)
 	}
+}
+
+// hiddenMarkerText renders the pseudo-row text shown under a node whose
+// children were pruned, naming the cause (--fold vs --max-depth).
+func hiddenMarkerText(n int, byFold bool) string {
+	cause := "--max-depth"
+	if byFold {
+		cause = "--fold"
+	}
+	noun := "children"
+	if n == 1 {
+		noun = "child"
+	}
+	return "... (" + strconv.Itoa(n) + " " + noun + " hidden by " + cause + ")"
 }
 
 func timeBounds(rows []Row) (min, max uint64) {
@@ -162,6 +183,14 @@ func paneWidths(rows []Row, opt Options, durWidth int) (treeW, barW int) {
 		w := prefixWidth(r.Depth) + labelWidth(r, opt)
 		if w > maxLabel {
 			maxLabel = w
+		}
+		// The hidden-children marker is a pseudo-row one level deeper than its
+		// node; size the tree pane to fit it so it is not truncated to "... (".
+		if r.HiddenMarker != "" {
+			mw := prefixWidth(r.Depth+1) + utf8.RuneCountInString(r.HiddenMarker)
+			if mw > maxLabel {
+				maxLabel = mw
+			}
 		}
 	}
 
