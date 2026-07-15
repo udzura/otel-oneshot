@@ -83,6 +83,7 @@ type rawFlags struct {
 	foldPatterns    []string
 	hidePatterns    []string
 	matchMode       string
+	version         bool
 }
 
 // Load resolves the effective configuration from CLI args (excluding argv[0]).

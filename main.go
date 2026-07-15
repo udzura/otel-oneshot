@@ -35,6 +35,11 @@ func run(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
 			fmt.Fprint(stdout, config.Usage())
 			return 0
 		}
+		var ve *config.VersionError
+		if errors.As(err, &ve) {
+			fmt.Fprintln(stdout, config.VersionString())
+			return 0
+		}
 		fmt.Fprintf(stderr, "error: %v\n", err)
 		return 1
 	}

@@ -63,6 +63,7 @@ cat trace.json | otel-oneshot --color never  # from stdin
 | `--color` | string | `auto` | `auto` \| `always` \| `never` (auto detects a TTY and honors `NO_COLOR`) |
 | `--sort` | string | `start_time` | `start_time` \| `duration` (ordering of siblings) |
 | `--time-unit` | string | `auto` | `auto` \| `s` \| `ms` \| `us` \| `ns` |
+| `--version` | bool | | Print the version (`otel-oneshot vX.Y.Z`) and exit |
 
 ### Precedence
 

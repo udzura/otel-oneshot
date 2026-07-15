@@ -31,6 +31,7 @@ Flags:
   --fold string             Collapse the subtree of spans matching this pattern (repeatable)
   --hide string             Drop spans matching this pattern, reparenting children (repeatable)
   --match-mode string       How --fold/--hide patterns match: regex | exact (default regex)
+  --version                 Print the version and exit
 `
 
 // parseFlags parses argv into rawFlags, tracking which flags were explicitly
@@ -57,6 +58,7 @@ func parseFlags(args []string) (*rawFlags, []string, error) {
 	fs.Var((*stringSlice)(&rf.foldPatterns), "fold", "")
 	fs.Var((*stringSlice)(&rf.hidePatterns), "hide", "")
 	fs.StringVar(&rf.matchMode, "match-mode", "regex", "")
+	fs.BoolVar(&rf.version, "version", false, "")
 
 	// The standard flag package stops at the first non-flag argument, so
 	// "input.json --width 100" would treat the flags as positionals. Parse in
@@ -81,6 +83,10 @@ func parseFlags(args []string) (*rawFlags, []string, error) {
 
 	fs.Visit(func(f *flag.Flag) { rf.set[f.Name] = true })
 
+	if rf.version {
+		return nil, nil, &VersionError{}
+	}
+
 	return rf, positional, nil
 }
 
@@ -101,5 +107,14 @@ type UsageError struct{}
 
 func (*UsageError) Error() string { return "usage requested" }
 
+// VersionError signals that the version should be printed and the process
+// should exit 0.
+type VersionError struct{}
+
+func (*VersionError) Error() string { return "version requested" }
+
 // Usage returns the help text.
 func Usage() string { return usageText }
+
+// VersionString returns the "otel-oneshot vX.Y.Z" line printed for --version.
+func VersionString() string { return "otel-oneshot v" + Version }
