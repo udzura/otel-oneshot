@@ -24,7 +24,7 @@ span                               0ms                        421ms             
 ### Homebrew
 
 ```sh
-brew install udzura/tap/otel-oneshot
+brew install --cask udzura/tap/otel-oneshot
 ```
 
 ### From source
