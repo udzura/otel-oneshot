@@ -30,7 +30,8 @@ Flags:
   --time-unit string        auto | s | ms | us | ns (default auto)
   --fold string             Collapse the subtree of spans matching this pattern (repeatable)
   --hide string             Drop spans matching this pattern, reparenting children (repeatable)
-  --match-mode string       How --fold/--hide patterns match: regex | exact (default regex)
+  --only string             Keep only spans matching this pattern, reparenting the rest (repeatable)
+  --match-mode string       How --fold/--hide/--only patterns match: regex | exact (default regex)
   --version                 Print the version and exit
 `
 
@@ -57,6 +58,7 @@ func parseFlags(args []string) (*rawFlags, []string, error) {
 	fs.StringVar(&rf.timeUnit, "time-unit", "auto", "")
 	fs.Var((*stringSlice)(&rf.foldPatterns), "fold", "")
 	fs.Var((*stringSlice)(&rf.hidePatterns), "hide", "")
+	fs.Var((*stringSlice)(&rf.onlyPatterns), "only", "")
 	fs.StringVar(&rf.matchMode, "match-mode", "regex", "")
 	fs.BoolVar(&rf.version, "version", false, "")
 

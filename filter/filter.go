@@ -3,14 +3,15 @@
 // The pipeline order is fixed and significant (see DESIGN.md §5):
 //
 //  1. root resolution   — pick the subtree(s) to display
-//  2. hide               — drop spans matching a pattern, reparenting children
+//  2. hide / only        — drop spans matching (or not matching) a pattern,
+//     reparenting children
 //  3. max-depth          — prune descendants beyond a depth limit
 //  4. fold               — collapse the subtree of spans matching a pattern
 //  5. top-n              — keep only the N longest spans plus their ancestors
 //  6. sort               — order siblings by start time or duration
 //
-// hide, max-depth and fold are applied together in a single reshaping clone so
-// that depth is counted against the already-elided tree.
+// hide, only, max-depth and fold are applied together in a single reshaping
+// clone so that depth is counted against the already-elided tree.
 //
 // filter never mutates the domain tree it is given: it returns a freshly cloned
 // tree so that domain.Trace (and its AllSpans index) stay consistent and tests
@@ -35,10 +36,15 @@ type Options struct {
 	// FoldPatterns collapse the subtree of any matching span (the span itself
 	// stays, its descendants are hidden behind a marker). HidePatterns drop
 	// matching spans entirely, reparenting their children onto the nearest
-	// surviving ancestor. MatchMode selects how patterns are interpreted:
-	// "regex" (default) or "exact". Empty pattern lists are no-ops.
+	// surviving ancestor. OnlyPatterns is the inverse of HidePatterns: spans
+	// that match *none* of them are dropped and reparented, so only spans
+	// matching at least one --only pattern (plus any spans forced to survive
+	// as reparenting targets) remain. MatchMode selects how patterns are
+	// interpreted: "regex" (default) or "exact". Empty pattern lists are
+	// no-ops.
 	FoldPatterns []string
 	HidePatterns []string
+	OnlyPatterns []string
 	MatchMode    string
 }
 
@@ -54,13 +60,17 @@ func Apply(tr *domain.Trace, opt Options) ([]*domain.Span, error) {
 	if err != nil {
 		return nil, fmt.Errorf("--hide: %w", err)
 	}
+	only, err := compileMatcher(opt.OnlyPatterns, opt.MatchMode)
+	if err != nil {
+		return nil, fmt.Errorf("--only: %w", err)
+	}
 	fold, err := compileMatcher(opt.FoldPatterns, opt.MatchMode)
 	if err != nil {
 		return nil, fmt.Errorf("--fold: %w", err)
 	}
 
-	// hide + max-depth + fold are applied together during the clone.
-	sh := shaper{hide: hide, fold: fold, maxDepth: opt.MaxDepth}
+	// hide + only + max-depth + fold are applied together during the clone.
+	sh := shaper{hide: hide, only: only, fold: fold, maxDepth: opt.MaxDepth}
 	cloned := sh.forest(roots, 0)
 
 	if opt.TopN > 0 {
@@ -108,11 +118,23 @@ func findFirstByName(roots []*domain.Span, name string) *domain.Span {
 }
 
 // shaper reshapes the tree during a single cloning pass, applying (in this
-// order per node) hide, then max-depth, then fold. It never mutates the input.
+// order per node) hide/only, then max-depth, then fold. It never mutates the
+// input.
 type shaper struct {
 	hide     *matcher // nil = no hiding
+	only     *matcher // nil = no restriction (every name survives)
 	fold     *matcher // nil = no folding
 	maxDepth int      // 0 = unlimited
+}
+
+// drop reports whether a span with this name should be removed and have its
+// children reparented onto the nearest surviving ancestor: either it matches
+// --hide, or --only was given and it matches none of the --only patterns.
+func (sh shaper) drop(name string) bool {
+	if sh.hide.match(name) {
+		return true
+	}
+	return sh.only != nil && !sh.only.match(name)
 }
 
 // forest reshapes a sibling list at the given depth. hide can expand a single
@@ -126,10 +148,11 @@ func (sh shaper) forest(spans []*domain.Span, relDepth int) []*domain.Span {
 	return out
 }
 
-// node reshapes a single span. A hidden span contributes its lifted children in
-// place of itself; every other span yields exactly one cloned node.
+// node reshapes a single span. A dropped span (hidden, or excluded by --only)
+// contributes its lifted children in place of itself; every other span yields
+// exactly one cloned node.
 func (sh shaper) node(s *domain.Span, relDepth int) []*domain.Span {
-	if sh.hide.match(s.Name) {
+	if sh.drop(s.Name) {
 		// Drop this span; its children move up to take its place.
 		return sh.forest(s.Children, relDepth)
 	}
@@ -156,14 +179,14 @@ func (sh shaper) node(s *domain.Span, relDepth int) []*domain.Span {
 	return []*domain.Span{&c}
 }
 
-// visibleChildCount counts how many direct children would remain after hiding,
-// so a fold/max-depth marker reports the count the viewer would actually see.
-// It only recurses through hidden nodes (to reach the children they lift up),
-// not through the whole subtree.
+// visibleChildCount counts how many direct children would remain after
+// hide/only dropping, so a fold/max-depth marker reports the count the viewer
+// would actually see. It only recurses through dropped nodes (to reach the
+// children they lift up), not through the whole subtree.
 func (sh shaper) visibleChildCount(spans []*domain.Span) int {
 	n := 0
 	for _, s := range spans {
-		if sh.hide.match(s.Name) {
+		if sh.drop(s.Name) {
 			n += sh.visibleChildCount(s.Children)
 		} else {
 			n++

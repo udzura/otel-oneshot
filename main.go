@@ -70,6 +70,7 @@ func run(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
 		Sort:         cfg.Sort,
 		FoldPatterns: cfg.FoldPatterns,
 		HidePatterns: cfg.HidePatterns,
+		OnlyPatterns: cfg.OnlyPatterns,
 		MatchMode:    cfg.MatchMode,
 	})
 	if err != nil {
