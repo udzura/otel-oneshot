@@ -161,6 +161,82 @@ func TestHideReparentsChildren(t *testing.T) {
 	}
 }
 
+func TestOnlyKeepsMatchingReparentsRest(t *testing.T) {
+	tr := buildTrace()
+	// Keep only "a1"; root and a are dropped (excluded), reparenting a1 as a
+	// new root.
+	roots, err := Apply(tr, Options{OnlyPatterns: []string{"^a1$"}, MatchMode: "regex"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if find(roots, "root") != nil || find(roots, "a") != nil {
+		t.Error("root and a should be dropped: they don't match --only")
+	}
+	a1 := find(roots, "a1")
+	if a1 == nil {
+		t.Fatal("a1 should survive (matches --only)")
+	}
+	if a1.Depth != 0 {
+		t.Errorf("a1 depth = %d, want 0 (promoted to root)", a1.Depth)
+	}
+	if countSpans(roots) != 1 {
+		t.Errorf("span count = %d, want 1 (only a1)", countSpans(roots))
+	}
+	// Non-mutation of the source tree.
+	if _, ok := tr.AllSpans["root"]; !ok {
+		t.Error("original tree was mutated by --only")
+	}
+}
+
+func TestOnlyCombinedWithHide(t *testing.T) {
+	tr := buildTrace()
+	// --only keeps spans matching "a" (regex: a, a1), --hide additionally
+	// drops "a1" itself: net result is just "a", reparented to root.
+	roots, err := Apply(tr, Options{
+		OnlyPatterns: []string{"a"},
+		HidePatterns: []string{"^a1$"},
+		MatchMode:    "regex",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if find(roots, "a") == nil {
+		t.Error("a should survive: matches --only and not --hide")
+	}
+	if find(roots, "a1") != nil {
+		t.Error("a1 should be dropped by --hide even though it matches --only")
+	}
+	if find(roots, "root") != nil || find(roots, "b") != nil {
+		t.Error("root and b should be dropped: excluded by --only")
+	}
+}
+
+func TestOnlyNoPatternsIsNoOp(t *testing.T) {
+	roots, err := Apply(buildTrace(), Options{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if countSpans(roots) != 4 {
+		t.Errorf("span count = %d, want 4 (no --only filtering)", countSpans(roots))
+	}
+}
+
+func TestOnlyMatchModeExact(t *testing.T) {
+	// exact "a": only the span literally named "a" survives (plus anything
+	// needed structurally); "a1" does not match "a" under exact mode, so it is
+	// dropped and its subtree (none) goes with it.
+	roots, err := Apply(buildTrace(), Options{OnlyPatterns: []string{"a"}, MatchMode: "exact"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if find(roots, "a") == nil {
+		t.Error("exact: a should survive")
+	}
+	if find(roots, "a1") != nil {
+		t.Error("exact: a1 should be dropped (name is 'a1', not 'a')")
+	}
+}
+
 func TestFoldCollapsesSubtree(t *testing.T) {
 	tr := buildTrace()
 	roots, err := Apply(tr, Options{FoldPatterns: []string{"^a$"}, MatchMode: "regex"})
@@ -205,6 +281,9 @@ func TestMatchModeExactVsRegex(t *testing.T) {
 func TestInvalidRegexReturnsError(t *testing.T) {
 	if _, err := Apply(buildTrace(), Options{FoldPatterns: []string{"("}, MatchMode: "regex"}); err == nil {
 		t.Fatal("expected error for invalid fold regex")
+	}
+	if _, err := Apply(buildTrace(), Options{OnlyPatterns: []string{"("}, MatchMode: "regex"}); err == nil {
+		t.Fatal("expected error for invalid only regex")
 	}
 }
 

@@ -66,7 +66,8 @@ cat trace.json | otel-oneshot --color never  # from stdin
 | `--show-attributes` | string (CSV) | `""` | Attribute keys to annotate after the span name (e.g. `http.status_code,db.statement`) |
 | `--fold` | string (repeatable) | `[]` | Collapse the subtree of any span matching the pattern. The span stays; its descendants are replaced by a `... (N children hidden by --fold)` marker |
 | `--hide` | string (repeatable) | `[]` | Drop any span matching the pattern and reparent its children onto the nearest surviving ancestor (elides intermediate noise) |
-| `--match-mode` | string | `regex` | How `--fold`/`--hide` patterns match: `regex` \| `exact` |
+| `--only` | string (repeatable) | `[]` | Inverse of `--hide`: drop any span matching **none** of the patterns, reparenting its children. Only spans matching at least one `--only` pattern remain |
+| `--match-mode` | string | `regex` | How `--fold`/`--hide`/`--only` patterns match: `regex` \| `exact` |
 | `--highlight-errors` | bool | `true` | Highlight ERROR spans. Disable with `--highlight-errors=false` |
 | `--color` | string | `auto` | `auto` \| `always` \| `never` (auto detects a TTY and honors `NO_COLOR`) |
 | `--sort` | string | `start_time` | `start_time` \| `duration` (ordering of siblings) |
@@ -90,6 +91,7 @@ width: 0
 show_attributes: ["http.status_code", "db.statement"]
 fold_patterns: ["^App#render"]
 hide_patterns: ["^Sinatra::", "^Rack::"]
+only_patterns: []
 match_mode: regex
 highlight_errors: true
 color: auto
@@ -111,8 +113,11 @@ otel-oneshot trace.json --root-span-name "HTTP GET /api/orders" --max-depth 3
 otel-oneshot trace.json --top-n 10 --sort duration
 
 # Elide framework noise: drop Sinatra/Rack spans, keeping the app spans nested
-# under them (children are reparented). --hide/--fold are repeatable.
+# under them (children are reparented). --hide/--fold/--only are repeatable.
 otel-oneshot trace.json --hide '^Sinatra::' --hide '^Rack::'
+
+# Keep only db.* spans, reparenting everything else out of the way
+otel-oneshot trace.json --only '^db\.'
 
 # Collapse a subtree you don't want to expand (keeps the node, hides descendants)
 otel-oneshot trace.json --fold '^App#render_template'
@@ -132,10 +137,11 @@ otel-oneshot batch.json --trace-id 4bf92f3577b34da6a3ce929d0e0e4736
 
 ## Folding and hiding spans
 
-`--hide` and `--fold` both prune the tree, but differently. They are especially
-useful for "trace everything" dumps (e.g. from a framework request) where most
-spans are framework/gem noise. Both flags are **repeatable** and interpret their
-pattern per `--match-mode` (`regex`, the default, or `exact`).
+`--hide`, `--fold`, and `--only` all prune the tree, but differently. They are
+especially useful for "trace everything" dumps (e.g. from a framework request)
+where most spans are framework/gem noise. All three flags are **repeatable**
+and interpret their pattern per `--match-mode` (`regex`, the default, or
+`exact`).
 
 Given this trace:
 
@@ -178,6 +184,30 @@ otel-oneshot sample.json --hide '^Framework\.' --hide '^JSON\.'
             └─ App#serialize
                └─ JSON.generate
 ```
+
+### `--only` — the inverse of `--hide`: keep only matching spans
+
+Drops each span matching **none** of the `--only` patterns and lifts its
+children onto the nearest surviving ancestor, same reparenting as `--hide`.
+Use it when you only care about a handful of span names buried in a big trace.
+
+```sh
+# Keep only App#* spans; everything else (Framework.*, JSON.generate) is
+# dropped and its children reparented.
+otel-oneshot sample.json --only '^App#'
+```
+
+`--only '^App#'` yields (only the two `App#*` spans remain, promoted to root):
+
+```
+└─ App#handle
+   └─ App#render
+      ├─ App#partial
+      └─ App#serialize
+```
+
+`--only` and `--hide` can be combined: a span survives only if it matches an
+`--only` pattern **and** matches no `--hide` pattern.
 
 ### `--fold` — keep the span, collapse its subtree
 

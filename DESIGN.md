@@ -88,7 +88,8 @@ otel-oneshot [input.json] [flags]
 | `--show-attributes` | []string | [] | タイムライン行に併記するattributeキーのカンマ区切りリスト |
 | `--fold` | []string | [] | マッチしたspanのサブツリーを畳む(span自体は残す)。繰り返し指定可 |
 | `--hide` | []string | [] | マッチしたspanを除去し子を親に繋ぎ直す。繰り返し指定可 |
-| `--match-mode` | string | "regex" | `--fold`/`--hide`のマッチ方式。`regex` \| `exact` |
+| `--only` | []string | [] | `--hide`の逆。いずれのパターンにもマッチしないspanを除去し子を親に繋ぎ直す。繰り返し指定可 |
+| `--match-mode` | string | "regex" | `--fold`/`--hide`/`--only`のマッチ方式。`regex` \| `exact` |
 | `--highlight-errors` | bool | true | status=ERRORのspanを強調表示するか |
 | `--color` | string | "auto" | `auto` \| `always` \| `never` |
 | `--sort` | string | "start_time" | `start_time` \| `duration` |
@@ -216,10 +217,14 @@ type Trace struct {
 1. **root解決**: `--root-span-id` / `--root-span-name` が指定されていれば、
    該当spanを新たな仮想rootとし、そのsubtreeだけを対象にする。
    両方未指定なら `Trace.Roots` 全体を対象とする。
-2. **hide / max-depth / fold 適用**: root解決後のツリーを1回のクローンで再構築する
-   (この3つはノード単位で hide → max-depth → fold の順に判定する)。
+2. **hide / only / max-depth / fold 適用**: root解決後のツリーを1回のクローンで
+   再構築する(この4つはノード単位で hide/only → max-depth → fold の順に判定する)。
    - **hide**: `--hide` にマッチしたspanを除去し、その子を親に繋ぎ直す(reparent)。
      depthはこの間引き後のツリーに対して数える。
+   - **only**: `--hide`の逆。`--only`のいずれのパターンにもマッチしないspanを
+     除去し、その子を親に繋ぎ直す(hideと同じreparent処理)。`--hide`と`--only`
+     を併用した場合、spanは「`--only`にマッチし、かつ`--hide`にマッチしない」
+     ときのみ生き残る。
    - **max-depth**: 指定深さを超える子孫を除去する。
    - **fold**: `--fold` にマッチしたspanはそれ自体を残しつつ子孫を畳む。
    - 除去/畳みが起きたノードには「...(N children hidden by --max-depth/--fold)」の

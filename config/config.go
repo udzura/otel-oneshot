@@ -27,6 +27,7 @@ type Config struct {
 	TimeUnit        string // auto | ms | us | ns
 	FoldPatterns    []string
 	HidePatterns    []string
+	OnlyPatterns    []string
 	MatchMode       string // regex | exact
 }
 
@@ -60,6 +61,7 @@ type fileConfig struct {
 	TimeUnit        *string  `yaml:"time_unit"`
 	FoldPatterns    []string `yaml:"fold_patterns"`
 	HidePatterns    []string `yaml:"hide_patterns"`
+	OnlyPatterns    []string `yaml:"only_patterns"`
 	MatchMode       *string  `yaml:"match_mode"`
 }
 
@@ -82,6 +84,7 @@ type rawFlags struct {
 	timeUnit        string
 	foldPatterns    []string
 	hidePatterns    []string
+	onlyPatterns    []string
 	matchMode       string
 	version         bool
 }
@@ -177,6 +180,9 @@ func applyYAML(cfg *Config, fc *fileConfig) {
 	if fc.HidePatterns != nil {
 		cfg.HidePatterns = fc.HidePatterns
 	}
+	if fc.OnlyPatterns != nil {
+		cfg.OnlyPatterns = fc.OnlyPatterns
+	}
 	if fc.MatchMode != nil {
 		cfg.MatchMode = *fc.MatchMode
 	}
@@ -221,6 +227,9 @@ func applyFlags(cfg *Config, rf *rawFlags) {
 	}
 	if rf.set["hide"] {
 		cfg.HidePatterns = rf.hidePatterns
+	}
+	if rf.set["only"] {
+		cfg.OnlyPatterns = rf.onlyPatterns
 	}
 	if rf.set["match-mode"] {
 		cfg.MatchMode = rf.matchMode

@@ -114,6 +114,37 @@ func TestFoldHideRepeatableFlags(t *testing.T) {
 	}
 }
 
+func TestOnlyRepeatableFlag(t *testing.T) {
+	cfg, err := Load([]string{
+		"--only", "^App#", "--only", "a{2,3}", // regex with a comma: must not be CSV-split
+		"in.json",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(cfg.OnlyPatterns) != 2 || cfg.OnlyPatterns[0] != "^App#" || cfg.OnlyPatterns[1] != "a{2,3}" {
+		t.Errorf("OnlyPatterns = %v, want two entries", cfg.OnlyPatterns)
+	}
+}
+
+func TestOnlyFromYAML(t *testing.T) {
+	dir := t.TempDir()
+	yamlPath := filepath.Join(dir, "config.yaml")
+	yaml := `
+only_patterns: ["^App#", "^Framework\\."]
+`
+	if err := os.WriteFile(yamlPath, []byte(yaml), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	cfg, err := Load([]string{"--config", yamlPath, "in.json"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(cfg.OnlyPatterns) != 2 {
+		t.Errorf("YAML only_patterns not applied: %+v", cfg)
+	}
+}
+
 func TestMatchModeValidationAndOverride(t *testing.T) {
 	if _, err := Load([]string{"--match-mode", "fuzzy"}); err == nil {
 		t.Fatal("expected error for invalid --match-mode")
