@@ -1,0 +1,73 @@
+# GoReleaser configuration.
+# Docs: https://goreleaser.com
+# Test locally without publishing: goreleaser release --snapshot --clean
+version: 2
+
+before:
+  hooks:
+    - go mod tidy
+
+builds:
+  - env:
+      - CGO_ENABLED=0
+    goos:
+      - linux
+      - darwin
+      - windows
+    goarch:
+      - amd64
+      - arm64
+    # Inject the version into config.Version at build time.
+    ldflags:
+      - -s -w -X github.com/udzura/otel-oneshot/config.Version={{ .Version }}
+
+archives:
+  - formats: [tar.gz]
+    # Produce e.g. otel-oneshot_Darwin_arm64.tar.gz
+    name_template: >-
+      {{ .ProjectName }}_
+      {{- title .Os }}_
+      {{- if eq .Arch "amd64" }}x86_64
+      {{- else if eq .Arch "386" }}i386
+      {{- else }}{{ .Arch }}{{ end }}
+    format_overrides:
+      - goos: windows
+        formats: [zip]
+
+checksum:
+  name_template: "checksums.txt"
+
+changelog:
+  sort: asc
+  filters:
+    exclude:
+      - "^docs:"
+      - "^test:"
+      - "^ci:"
+      - "Merge pull request"
+
+# Homebrew Cask (macOS). `brews` (formula) is deprecated in GoReleaser v2 for
+# pre-built binaries; casks are the recommended path. Linux users install from
+# the GitHub Release archives (Homebrew casks are macOS-only).
+homebrew_casks:
+  - name: otel-oneshot
+    # Push the generated cask to udzura/homebrew-tap under Casks/.
+    repository:
+      owner: udzura
+      name: homebrew-tap
+      token: "{{ .Env.HOMEBREW_TAP_GITHUB_TOKEN }}"
+    directory: Casks
+    homepage: "https://github.com/udzura/otel-oneshot"
+    description: "Render a single OTLP/JSON trace as an ASCII span timeline"
+    # Commit author for the tap repo.
+    commit_author:
+      name: goreleaserbot
+      email: bot@goreleaser.com
+    # The binaries are unsigned; strip the quarantine attribute on install so
+    # macOS Gatekeeper doesn't block the first run.
+    hooks:
+      post:
+        install: |
+          if OS.mac?
+            system_command "/usr/bin/xattr", args: ["-dr", "com.apple.quarantine", "#{staged_path}/otel-oneshot"]
+          end
