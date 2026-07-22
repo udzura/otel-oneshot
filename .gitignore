@@ -4,3 +4,6 @@
 # Go test / build artifacts
 *.out
 *.test
+
+# GoReleaser output
+/dist
